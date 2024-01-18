@@ -4,12 +4,15 @@ import json
 import logging 
 import matplotlib.pyplot as plt
 import os
-import openai
+from copy import deepcopy
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 import re
 import subprocess
 from pathlib import Path
 import shutil
-import time 
+import time
 
 from utils.misc import * 
 from utils.file_utils import find_files_with_substring, load_tensorboard_logs
@@ -25,7 +28,6 @@ def main(cfg):
     logging.info(f"Workspace: {workspace_dir}")
     logging.info(f"Project Root: {EUREKA_ROOT_DIR}")
 
-    openai.api_key = os.getenv("OPENAI_API_KEY")
 
     task = cfg.env.task
     task_description = cfg.env.description
@@ -88,12 +90,10 @@ def main(cfg):
                 break
             for attempt in range(1000):
                 try:
-                    response_cur = openai.ChatCompletion.create(
-                        model=model,
-                        messages=messages,
-                        temperature=cfg.temperature,
-                        n=chunk_size
-                    )
+                    response_cur = client.chat.completions.create(model=model,
+                    messages=messages,
+                    temperature=cfg.temperature,
+                    n=chunk_size)
                     total_samples += chunk_size
                     break
                 except Exception as e:
@@ -106,10 +106,45 @@ def main(cfg):
                 logging.info("Code terminated due to too many failed attempts!")
                 exit()
 
-            responses.extend(response_cur["choices"])
-            prompt_tokens = response_cur["usage"]["prompt_tokens"]
-            total_completion_token += response_cur["usage"]["completion_tokens"]
-            total_token += response_cur["usage"]["total_tokens"]
+            #print(response_cur)
+            # for k in response_cur.iteritems():
+            #     print(k)
+            # time.sleep(5)
+                
+            # response_dict = dict(response_cur)
+
+            # for k in response_dict.keys():
+            #     print(k)
+            # time.sleep(5)
+
+            # # for k in response_dict["choices"].keys():
+            # #     print(k)
+
+            # print(len(response_dict["choices"]))
+
+            # for k in dict(response_cur.choices[0]).keys():
+            #     print(k)
+            # time.sleep(5)
+
+            print("=====================================")
+            #print(response_dict["choices"][0])
+
+            print("Print response_cur.choices[0] again")
+            print(response_cur.choices[0])
+
+            print("=====================================")
+
+            print(response_cur.choices[0].message.content)
+
+            print("=====================================")
+
+            time.sleep(5)
+
+            # double check what to do with different choices
+            responses.extend(deepcopy(response_cur.choices[0]))
+            prompt_tokens = response_cur.usage.prompt_tokens
+            total_completion_token += response_cur.usage.completion_tokens
+            total_token += response_cur.usage.total_tokens
 
         if cfg.sample == 1:
             logging.info(f"Iteration {iter}: GPT Output:\n " + responses[0]["message"]["content"] + "\n")
@@ -119,8 +154,18 @@ def main(cfg):
         
         code_runs = [] 
         rl_runs = []
+
+        # print(responses[0]["message"]["content"])
+        # time.sleep(5)
+
         for response_id in range(cfg.sample):
-            response_cur = responses[response_id]["message"]["content"]
+            #response_cur = responses[response_id]["message"]["content"]
+            response_cur = responses[response_id]
+            print("=====================================")
+            print(response_cur)
+            print("=====================================")
+            # response_cur = responses[response_id].message.content
+            # print(response_cur)
             logging.info(f"Iteration {iter}: Processing Code Run {response_id}")
 
             # Regex patterns to extract python code enclosed in GPT response
