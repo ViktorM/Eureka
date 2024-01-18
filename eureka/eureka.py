@@ -28,7 +28,6 @@ def main(cfg):
     logging.info(f"Workspace: {workspace_dir}")
     logging.info(f"Project Root: {EUREKA_ROOT_DIR}")
 
-
     task = cfg.env.task
     task_description = cfg.env.description
     suffix = cfg.suffix
@@ -42,7 +41,7 @@ def main(cfg):
     task_file = f'{EUREKA_ROOT_DIR}/envs/{env_parent}/{env_name}.py'
     task_obs_file = f'{EUREKA_ROOT_DIR}/envs/{env_parent}/{env_name}_obs.py'
     shutil.copy(task_obs_file, f"env_init_obs.py")
-    task_code_string  = file_to_string(task_file)
+    task_code_string = file_to_string(task_file)
     task_obs_code_string  = file_to_string(task_obs_file)
     output_file = f"{ISAAC_ROOT_DIR}/tasks/{env_name}{suffix.lower()}.py"
 
@@ -71,13 +70,14 @@ def main(cfg):
     best_code_paths = []
     max_success_overall = DUMMY_FAILURE
     max_success_reward_correlation_overall = DUMMY_FAILURE
-    max_reward_code_path = None 
+    max_reward_code_path = None
     
     # Eureka generation loop
     for iter in range(cfg.iteration):
         # Get Eureka response
         responses = []
         response_cur = None
+        prompt_tokens = 0
         total_samples = 0
         total_token = 0
         total_completion_token = 0
@@ -106,48 +106,14 @@ def main(cfg):
                 logging.info("Code terminated due to too many failed attempts!")
                 exit()
 
-            #print(response_cur)
-            # for k in response_cur.iteritems():
-            #     print(k)
-            # time.sleep(5)
-                
-            # response_dict = dict(response_cur)
-
-            # for k in response_dict.keys():
-            #     print(k)
-            # time.sleep(5)
-
-            # # for k in response_dict["choices"].keys():
-            # #     print(k)
-
-            # print(len(response_dict["choices"]))
-
-            # for k in dict(response_cur.choices[0]).keys():
-            #     print(k)
-            # time.sleep(5)
-
-            print("=====================================")
-            #print(response_dict["choices"][0])
-
-            print("Print response_cur.choices[0] again")
-            print(response_cur.choices[0])
-
-            print("=====================================")
-
-            print(response_cur.choices[0].message.content)
-
-            print("=====================================")
-
-            time.sleep(5)
-
             # double check what to do with different choices
-            responses.extend(deepcopy(response_cur.choices[0]))
+            responses.extend(response_cur.choices)
             prompt_tokens = response_cur.usage.prompt_tokens
             total_completion_token += response_cur.usage.completion_tokens
             total_token += response_cur.usage.total_tokens
 
         if cfg.sample == 1:
-            logging.info(f"Iteration {iter}: GPT Output:\n " + responses[0]["message"]["content"] + "\n")
+            logging.info(f"Iteration {iter}: GPT Output:\n " + responses[0].message.content + "\n")
 
         # Logging Token Information
         logging.info(f"Iteration {iter}: Prompt Tokens: {prompt_tokens}, Completion Tokens: {total_completion_token}, Total Tokens: {total_token}")
@@ -155,17 +121,12 @@ def main(cfg):
         code_runs = [] 
         rl_runs = []
 
-        # print(responses[0]["message"]["content"])
-        # time.sleep(5)
-
         for response_id in range(cfg.sample):
-            #response_cur = responses[response_id]["message"]["content"]
-            response_cur = responses[response_id]
+            response_cur = responses[response_id].message.content
             print("=====================================")
             print(response_cur)
             print("=====================================")
-            # response_cur = responses[response_id].message.content
-            # print(response_cur)
+
             logging.info(f"Iteration {iter}: Processing Code Run {response_id}")
 
             # Regex patterns to extract python code enclosed in GPT response
@@ -229,7 +190,7 @@ def main(cfg):
             shutil.copy(output_file, f"env_iter{iter}_response{response_id}.py")
 
             # Find the freest GPU to run GPU-accelerated RL
-            set_freest_gpu()
+            #set_freest_gpu()
             
             # Execute the python file with flags
             rl_filepath = f"env_iter{iter}_response{response_id}.txt"
@@ -351,7 +312,7 @@ def main(cfg):
 
         logging.info(f"Iteration {iter}: Max Success: {max_success}, Execute Rate: {execute_rate}, Max Success Reward Correlation: {max_success_reward_correlation}")
         logging.info(f"Iteration {iter}: Best Generation ID: {best_sample_idx}")
-        logging.info(f"Iteration {iter}: GPT Output Content:\n" +  responses[best_sample_idx]["message"]["content"] + "\n")
+        logging.info(f"Iteration {iter}: GPT Output Content:\n" + responses[best_sample_idx].message.content + "\n")
         logging.info(f"Iteration {iter}: User Content:\n" + best_content + "\n")
             
         # Plot the success rate
@@ -373,11 +334,11 @@ def main(cfg):
         np.savez('summary.npz', max_successes=max_successes, execute_rates=execute_rates, best_code_paths=best_code_paths, max_successes_reward_correlation=max_successes_reward_correlation)
 
         if len(messages) == 2:
-            messages += [{"role": "assistant", "content": responses[best_sample_idx]["message"]["content"]}]
+            messages += [{"role": "assistant", "content": responses[best_sample_idx].message.content}]
             messages += [{"role": "user", "content": best_content}]
         else:
             assert len(messages) == 4
-            messages[-2] = {"role": "assistant", "content": responses[best_sample_idx]["message"]["content"]}
+            messages[-2] = {"role": "assistant", "content": responses[best_sample_idx].message.content}
             messages[-1] = {"role": "user", "content": best_content}
 
         # Save dictionary as JSON file
