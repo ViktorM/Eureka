@@ -5,6 +5,7 @@ INSTALL_REQUIRES = [
     "charset-normalizer",
     "matplotlib",
     "openai",
+    "gpustat",
     #'torch<=2.0.0',
     #'numpy==1.20.0',
     #'ray>=1.1.0',
